@@ -1,10 +1,15 @@
 # syntax=docker/dockerfile:1.9
 
 # ============================================================================
-# Stage 1 - build the virtualenv with uv (10-100x faster than pip, and it
-# resolves from the lockfile so an image rebuild is byte-for-byte repeatable).
+# Stage 1 - build the virtualenv with uv, which resolves and installs the
+# dependency set an order of magnitude faster than pip.
 # ============================================================================
-FROM ghcr.io/astral-sh/uv:0.12-python3.13-bookworm-slim AS builder
+FROM python:3.13-slim-bookworm AS builder
+
+# Copy the uv binary from its pinned distroless image rather than using a
+# uv-flavoured base: this keeps both stages on the *same* python image, so the
+# venv copied across finds its interpreter at the identical path.
+COPY --from=ghcr.io/astral-sh/uv:0.12.5 /uv /uvx /bin/
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
@@ -14,13 +19,12 @@ WORKDIR /app
 
 # Dependencies resolve from the manifest alone, so this layer is cached until
 # pyproject.toml actually changes - editing application code never re-installs.
-COPY pyproject.toml uv.lock* ./
+# The venv is created explicitly: the runtime stage copies /app/.venv, and
+# without this it never exists.
+COPY pyproject.toml ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --no-dev --no-install-project --frozen 2>/dev/null || \
-    uv pip install --no-cache -r pyproject.toml
-
-COPY app ./app
-COPY application.py ./
+    uv venv /app/.venv \
+    && uv pip install --python /app/.venv/bin/python -r pyproject.toml
 
 # ============================================================================
 # Stage 2 - runtime. Only the venv and source cross over; uv, build caches and

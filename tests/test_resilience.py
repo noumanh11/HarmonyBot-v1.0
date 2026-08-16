@@ -8,6 +8,7 @@ from app.services.retrieval import _usable
 
 # --- classification --------------------------------------------------
 
+
 @pytest.mark.parametrize(
     "message",
     [
@@ -30,6 +31,7 @@ def test_transient_errors_are_retryable(message):
 
 # --- failover --------------------------------------------------------
 
+
 class FakeStream:
     """Mimics the async iterator returned by chat_completion(stream=True)."""
 
@@ -40,16 +42,27 @@ class FakeStream:
         async def gen():
             for text in self._chunks:
                 yield type(
-                    "Chunk", (), {"choices": [
-                        type("Choice", (), {"delta": type("D", (), {"content": text})})
-                    ]},
+                    "Chunk",
+                    (),
+                    {
+                        "choices": [
+                            type(
+                                "Choice", (), {"delta": type("D", (), {"content": text})}
+                            )
+                        ]
+                    },
                 )
             # Terminating chunk with a null delta - v1 crashed here.
             yield type(
-                "Chunk", (), {"choices": [
-                    type("Choice", (), {"delta": type("D", (), {"content": None})})
-                ]},
+                "Chunk",
+                (),
+                {
+                    "choices": [
+                        type("Choice", (), {"delta": type("D", (), {"content": None})})
+                    ]
+                },
             )
+
         return gen()
 
 
@@ -89,11 +102,13 @@ async def collect(client) -> str:
 
 async def test_retired_primary_fails_over_to_next_model():
     """Exactly the v1 outage: the pinned model stops being served."""
-    client, fakes = build_client({
-        "primary": Exception("model_not_supported"),
-        "secondary": ["Hello ", "there"],
-        "tertiary": ["unused"],
-    })
+    client, fakes = build_client(
+        {
+            "primary": Exception("model_not_supported"),
+            "secondary": ["Hello ", "there"],
+            "tertiary": ["unused"],
+        }
+    )
 
     assert await collect(client) == "Hello there"
     assert client.active_model == "secondary"
@@ -102,11 +117,13 @@ async def test_retired_primary_fails_over_to_next_model():
 
 async def test_failover_is_sticky():
     """After failing over, later requests skip the dead model entirely."""
-    client, fakes = build_client({
-        "primary": Exception("model_not_supported"),
-        "secondary": ["ok"],
-        "tertiary": ["unused"],
-    })
+    client, fakes = build_client(
+        {
+            "primary": Exception("model_not_supported"),
+            "secondary": ["ok"],
+            "tertiary": ["unused"],
+        }
+    )
 
     await collect(client)
     calls_after_first = fakes["primary"].calls
@@ -115,43 +132,54 @@ async def test_failover_is_sticky():
 
 
 async def test_permanent_error_is_not_retried():
-    client, fakes = build_client({
-        "primary": Exception("model_not_supported"),
-        "secondary": ["ok"],
-        "tertiary": ["x"],
-    })
+    client, fakes = build_client(
+        {
+            "primary": Exception("model_not_supported"),
+            "secondary": ["ok"],
+            "tertiary": ["x"],
+        }
+    )
     await collect(client)
     assert fakes["primary"].calls == 1
 
 
 async def test_transient_error_is_retried_on_the_same_model():
-    client, fakes = build_client({
-        "primary": Exception("503 Service Unavailable"),
-        "secondary": ["ok"],
-        "tertiary": ["x"],
-    })
+    client, fakes = build_client(
+        {
+            "primary": Exception("503 Service Unavailable"),
+            "secondary": ["ok"],
+            "tertiary": ["x"],
+        }
+    )
     await collect(client)
     assert fakes["primary"].calls == 2, "one attempt plus one retry"
 
 
 async def test_all_models_failing_raises_llm_error():
-    client, _ = build_client({
-        "primary": Exception("model_not_supported"),
-        "secondary": Exception("model_not_supported"),
-        "tertiary": Exception("model_not_supported"),
-    })
+    client, _ = build_client(
+        {
+            "primary": Exception("model_not_supported"),
+            "secondary": Exception("model_not_supported"),
+            "tertiary": Exception("model_not_supported"),
+        }
+    )
     with pytest.raises(LLMError):
         await collect(client)
 
 
 async def test_null_delta_chunk_is_skipped():
-    client, _ = build_client({
-        "primary": ["a", "b"], "secondary": [], "tertiary": [],
-    })
+    client, _ = build_client(
+        {
+            "primary": ["a", "b"],
+            "secondary": [],
+            "tertiary": [],
+        }
+    )
     assert await collect(client) == "ab"
 
 
 # --- corpus filtering ------------------------------------------------
+
 
 def test_boilerplate_rows_are_dropped():
     """These generic rows outranked real matches for every question."""
@@ -175,6 +203,7 @@ def test_real_exchanges_are_kept():
 
 # --- middleware ------------------------------------------------------
 
+
 def test_security_headers_present(client):
     res = client.get("/")
     assert res.headers["X-Content-Type-Options"] == "nosniff"
@@ -193,10 +222,7 @@ def test_upstream_request_id_is_honoured(client):
 
 
 def test_rate_limit_returns_429(client):
-    codes = [
-        client.post("/chat", json={"message": "hi"}).status_code
-        for _ in range(25)
-    ]
+    codes = [client.post("/chat", json={"message": "hi"}).status_code for _ in range(25)]
     assert 429 in codes, "generation endpoint should be rate limited"
     assert codes.index(429) >= 20, "limit should not trip too early"
 

@@ -129,18 +129,57 @@ class KnowledgeBase:
 
     MENTAL_HEALTH_KEYWORDS = frozenset(
         {
-            "anxious", "anxiety", "depressed", "depression", "stress", "stressed",
-            "mental health", "counseling", "counselling", "therapy", "therapist",
-            "feelings", "worthless", "suicidal", "suicide", "panic", "lonely",
-            "grief", "trauma", "self-harm", "hopeless", "overwhelmed", "burnout",
+            "anxious",
+            "anxiety",
+            "depressed",
+            "depression",
+            "stress",
+            "stressed",
+            "mental health",
+            "counseling",
+            "counselling",
+            "therapy",
+            "therapist",
+            "feelings",
+            "worthless",
+            "suicidal",
+            "suicide",
+            "panic",
+            "lonely",
+            "grief",
+            "trauma",
+            "self-harm",
+            "hopeless",
+            "overwhelmed",
+            "burnout",
         }
     )
     MEDICAL_KEYWORDS = frozenset(
         {
-            "symptom", "symptoms", "diagnosis", "diagnose", "treatment", "doctor",
-            "prescription", "medication", "pain", "illness", "disease", "infection",
-            "surgery", "fever", "rash", "injury", "blood", "swelling", "nausea",
-            "antibiotic", "vaccine", "dosage", "allergy", "cough",
+            "symptom",
+            "symptoms",
+            "diagnosis",
+            "diagnose",
+            "treatment",
+            "doctor",
+            "prescription",
+            "medication",
+            "pain",
+            "illness",
+            "disease",
+            "infection",
+            "surgery",
+            "fever",
+            "rash",
+            "injury",
+            "blood",
+            "swelling",
+            "nausea",
+            "antibiotic",
+            "vaccine",
+            "dosage",
+            "allergy",
+            "cough",
         }
     )
 
@@ -164,9 +203,7 @@ class KnowledgeBase:
             try:
                 questions, answers = loader(settings)
                 self._indexes[domain] = _Index(questions, answers)
-                logger.info(
-                    "Indexed %d examples for %s", len(questions), domain.value
-                )
+                logger.info("Indexed %d examples for %s", len(questions), domain.value)
             except Exception:
                 # A missing corpus degrades quality, not availability.
                 logger.exception("Could not index %s corpus", domain.value)

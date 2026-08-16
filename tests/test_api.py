@@ -43,9 +43,7 @@ def test_upstream_failure_is_502_and_hides_internals(client, stub):
 
 
 def test_stream_emits_sse_events(client):
-    with client.stream(
-        "POST", "/chat/stream", json={"message": "hello"}
-    ) as res:
+    with client.stream("POST", "/chat/stream", json={"message": "hello"}) as res:
         assert res.status_code == 200
         assert res.headers["content-type"].startswith("text/event-stream")
         body = "".join(res.iter_text())

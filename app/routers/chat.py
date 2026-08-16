@@ -56,9 +56,7 @@ async def chat_stream(payload: ChatRequest, request: Request) -> StreamingRespon
     async def event_source():
         yield _sse("session", session_id)
         try:
-            async for event, data in service.stream(
-                payload.message, session_id, history
-            ):
+            async for event, data in service.stream(payload.message, session_id, history):
                 yield _sse(event, data)
         except LLMError:
             yield _sse("error", "The language model is unavailable. Please try again.")

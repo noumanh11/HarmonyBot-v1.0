@@ -11,6 +11,7 @@ from app.services.sessions import SessionStore
 
 # --- routing ---------------------------------------------------------
 
+
 @pytest.mark.parametrize(
     "message,expected",
     [
@@ -30,6 +31,7 @@ def test_routing_counts_hits_rather_than_first_match():
 
 
 # --- retrieval -------------------------------------------------------
+
 
 def test_index_returns_the_nearest_question_not_the_first_row():
     questions = [
@@ -53,6 +55,7 @@ def test_index_drops_results_below_the_similarity_floor():
 
 
 # --- prompting -------------------------------------------------------
+
 
 def test_examples_are_attributed_correctly():
     """v1 labelled the patient's message 'Doctor:' and the reply 'Patient:'."""
@@ -85,6 +88,7 @@ def test_history_sits_between_system_and_question():
 
 # --- safety ----------------------------------------------------------
 
+
 @pytest.mark.parametrize(
     "message",
     ["I want to kill myself", "thinking about suicide", "I want to die"],
@@ -102,6 +106,7 @@ def test_no_false_crisis(message):
 
 
 # --- rendering -------------------------------------------------------
+
 
 def test_script_tags_are_neutralised():
     """v1 piped raw model output into innerHTML."""
@@ -130,6 +135,7 @@ def test_links_get_safe_rel():
 
 
 # --- sessions --------------------------------------------------------
+
 
 def test_history_window_is_bounded():
     store = SessionStore(max_turns=2, ttl_seconds=3600, max_sessions=10)

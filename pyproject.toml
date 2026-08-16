@@ -3,7 +3,8 @@ name = "harmonybot"
 version = "2.1.0"
 description = "A retrieval-grounded medical and mental-health conversational assistant."
 readme = "README.md"
-requires-python = ">=3.11"
+# numpy 2.5 dropped 3.11, so 3.12 is the real floor for this dependency set.
+requires-python = ">=3.12"
 license = { file = "LICENSE" }
 authors = [
     { name = "Shabi ul Hassan" },
@@ -53,7 +54,7 @@ packages = ["app"]
 # ---------------------------------------------------------------------------
 [tool.ruff]
 line-length = 90
-target-version = "py311"
+target-version = "py312"
 extend-exclude = ["static", "templates"]
 
 [tool.ruff.lint]
@@ -98,7 +99,7 @@ omit = ["*/tests/*"]
 
 # ---------------------------------------------------------------------------
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 plugins = ["pydantic.mypy"]
 warn_unused_configs = true
 warn_redundant_casts = true

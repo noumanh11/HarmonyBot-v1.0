@@ -12,10 +12,33 @@ import bleach
 import markdown2
 
 _ALLOWED_TAGS = {
-    "p", "br", "strong", "em", "b", "i", "u", "code", "pre",
-    "ul", "ol", "li", "blockquote", "a",
-    "h1", "h2", "h3", "h4", "h5", "h6",
-    "table", "thead", "tbody", "tr", "th", "td", "hr",
+    "p",
+    "br",
+    "strong",
+    "em",
+    "b",
+    "i",
+    "u",
+    "code",
+    "pre",
+    "ul",
+    "ol",
+    "li",
+    "blockquote",
+    "a",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "table",
+    "thead",
+    "tbody",
+    "tr",
+    "th",
+    "td",
+    "hr",
 }
 _ALLOWED_ATTRS = {"a": ["href", "title", "rel", "target"]}
 _ALLOWED_PROTOCOLS = ["http", "https", "mailto", "tel"]
@@ -37,9 +60,7 @@ def render_markdown(text: str) -> str:
         strip=True,
     )
     # Outbound links open safely rather than handing the opener to the target.
-    return bleach.linkify(
-        cleaned, callbacks=[_set_link_attrs], skip_tags=["pre", "code"]
-    )
+    return bleach.linkify(cleaned, callbacks=[_set_link_attrs], skip_tags=["pre", "code"])
 
 
 def _set_link_attrs(attrs: dict, new: bool = False) -> dict:

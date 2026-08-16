@@ -27,14 +27,15 @@ jobs:
         run: uvx ruff check --output-format=github .
 
       - name: Format check
-        run: uvx ruff format --check .
+        run: uvx ruff format --check --diff .
 
   test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.11", "3.12", "3.13"]
+        # numpy 2.5 requires >=3.12, which is this project's floor.
+        python: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
 
@@ -43,11 +44,14 @@ jobs:
           enable-cache: true
           python-version: ${{ matrix.python }}
 
+      # `uv sync` + `uv run` keep everything inside the project venv, so the
+      # test runner is always on PATH regardless of how the runner's Python
+      # was provisioned.
       - name: Install
-        run: uv pip install --system -e ".[dev]"
+        run: uv sync --extra dev
 
       - name: Test
-        run: pytest --cov=app --cov-report=term-missing
+        run: uv run pytest --cov=app --cov-report=term-missing
 
   docker:
     runs-on: ubuntu-latest
@@ -73,7 +77,12 @@ jobs:
           docker run -d --name hb -p 7860:7860 \
             -e ENABLE_RETRIEVAL=false harmonybot:ci
           for i in $(seq 1 30); do
-            if curl -sf http://127.0.0.1:7860/health; then echo "\nOK"; exit 0; fi
+            if curl -sf http://127.0.0.1:7860/health; then
+              echo "container healthy"
+              exit 0
+            fi
             sleep 2
           done
-          echo "container failed to become healthy"; docker logs hb; exit 1
+          echo "container failed to become healthy"
+          docker logs hb
+          exit 1
