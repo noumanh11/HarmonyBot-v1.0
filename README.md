@@ -1,169 +1,197 @@
-# Harmony Bot V1.0
+# Harmony Bot v2.0
 
-**Harmony Bot** is an intelligent conversational assistant built using Hugging Face's Inference API and the Meta LLaMA-3 model. It integrates mental health and medical counseling datasets to provide responses based on the user's input, offering tailored support for both general inquiries and health-related issues.
+**Harmony Bot** is a conversational assistant for medical and mental-health
+questions. It routes each question to a domain, retrieves genuinely similar
+examples from two Hugging Face datasets, and answers with a Llama-3.1 model
+served through the Hugging Face Inference API.
 
 ## Features
 
-- **Conversational AI**: Powered by the Meta-Llama-3-8B-Instruct model to provide coherent and context-aware conversations.
-- **Contextual Understanding**: Detects keywords related to mental health and medical inquiries to generate relevant and informed responses.
-- **Rich Markdown Support**: Outputs are rendered using Markdown for better readability.
-- **Hugging Face Integration**: Built using Hugging Face's Inference API for seamless integration with state-of-the-art NLP models.
-- **FastAPI Framework**: Switched from Flask to FastAPI for better performance and modern async capabilities.
-- **Deployed on Hugging Face Spaces**: The bot is hosted as a web app on Hugging Face Spaces, accessible directly through the space.
+- **Retrieval-grounded answers** — TF-IDF nearest-neighbour search over ~23k
+  real patient/counsellor exchanges, so the injected context actually relates
+  to the question.
+- **Live token streaming** — replies render as they are generated over SSE.
+- **Conversation memory** — a rolling window of recent turns, per session.
+- **Crisis safeguards** — deterministic detection of self-harm language, with
+  helpline resources surfaced before the model is even called.
+- **Sanitised output** — model Markdown is escaped and whitelisted before it
+  reaches the DOM.
+- **Graceful degradation** — if the datasets cannot be fetched, the app still
+  boots and answers without retrieval.
+
+### Interface
+
+- **Saved conversations** — grouped by recency, searchable, renameable by first
+  message, exportable as Markdown. Stored only in your browser.
+- **Resumable context** — a conversation restored after a refresh replays its
+  recent turns, so the model keeps its memory even across a server restart.
+- **Regenerate** any reply, **stop** mid-generation, **copy** any message.
+- **Reader-friendly scrolling** — the view follows new tokens only while you
+  are already at the bottom, never yanking the page mid-read.
+- **Light / dark / system** theme, applied before first paint.
+- **Keyboard-first** — <kbd>Ctrl</kbd>+<kbd>K</kbd> search,
+  <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd> new chat,
+  <kbd>Esc</kbd> stop, <kbd>?</kbd> for the full list.
+- **Accessible** — skip link, ARIA live regions, visible focus rings, native
+  `<dialog>` focus trapping, `prefers-reduced-motion` support.
+- **No image or font payload** — the entire UI is CSS and inline SVG.
 
 ## Demo
 
-Check out the live demo of the Harmony Bot here: [Harmony Bot on Hugging Face Spaces](https://huggingface.co/spaces/Shabi23/HarmonyBot)
+[Harmony Bot on Hugging Face Spaces](https://huggingface.co/spaces/Shabi23/HarmonyBot)
 
-## Project Structure
+## Project structure
 
-```bash
-
-├── static/                   # Static files (background images, scripts, CSS)
-├── templates/                # HTML templates for the front-end interface
-├── application.py            # FastAPI application for backend logic
-├── Dockerfile                # Docker configuration for deploying the app
-├── README.md                 # Project documentation
-├── Requirements.txt          # Python dependencies
-
+```
+application.py             # entrypoint (uvicorn application:app)
+app/
+  config.py                # env-backed settings
+  main.py                  # app factory + lifespan wiring
+  prompts.py               # system prompt / message assembly
+  schemas.py               # request + response models
+  routers/
+    chat.py                # POST /chat, /chat/stream, /chat/reset
+    pages.py               # GET /, /health
+  services/
+    chat.py                # route -> retrieve -> prompt -> generate -> render
+    llm.py                 # async Hugging Face client
+    retrieval.py           # TF-IDF index over both datasets
+    rendering.py           # Markdown -> sanitised HTML
+    safety.py              # crisis detection
+    sessions.py            # in-memory conversation history
+static/
+  css/style.css            # design tokens + all UI styling
+  js/api.js                # fetch + SSE parsing
+  js/store.js              # conversation persistence (localStorage)
+  js/ui.js                 # toasts, dialogs, icons, time formatting
+  js/app.js                # wiring
+templates/index.html       # chat UI
+tests/                     # pytest suite
 ```
 
 ## Requirements
 
-- **Python 3.11 or above**
-- **Hugging Face Hub Access**
-- Datasets from Hugging Face: 
-  - `avaliev/chat_doctor`
-  - `Amod/mental_health_counseling_conversations`
-- **FastAPI**, **uvicorn**
-- **Markdown2** for rendering responses
-- Other libraries as specified in `Requirements.txt`
+- Python 3.11+
+- A Hugging Face token with inference access
 
 ## Installation
 
-To run this project locally, follow these steps:
+```bash
+git clone https://github.com/shabihassan1/HarmonyBot-v1.0.git
+cd HarmonyBot-v1.0
 
-1. Clone the repository:
+python -m venv venv
+source venv/bin/activate      # Windows: venv\Scripts\activate
 
-   ```bash
-   git clone https://github.com/shabihassan1/HarmonyBot-v1.0.git
+pip install -r Requirements.txt
 
-   ```
-2. Navigate to the Project Directory:
-   
-   ```bash
-    cd HarmonyBot-v1.0
+cp .env.example .env          # then add your HF_TOKEN
+```
 
-   ```
-3. Create and activate a virtual environment (optional but recommended):
-    
-   ```bash
-    python -m venv venv
-    source venv/bin/activate  # For Windows: venv\Scripts\activate
-   
-   ```
-   
-4. Install the dependencies
+Run it:
 
-   ```bash
-    pip install -r Requirements.txt
+```bash
+uvicorn application:app --host 127.0.0.1 --port 7860
+```
 
-   ```
-5. Run the application:
+Open <http://127.0.0.1:7860>. First start takes a few seconds while the
+datasets download and the index builds; set `ENABLE_RETRIEVAL=false` to skip
+that entirely.
 
-   ```bash
-    uvicorn application:app --host 0.0.0.0 --port 7680
+## Configuration
 
-    ```
-6. Open your browser and go to http://127.0.0.1:7680 to access the web interface.
+Every setting is an environment variable — see `.env.example`. The ones worth
+knowing:
 
+| Variable | Default | Purpose |
+|---|---|---|
+| `HF_TOKEN` | — | Hugging Face inference token (required) |
+| `MODEL_ID` | `meta-llama/Llama-3.1-8B-Instruct` | Any model on HF Inference Providers |
+| `ENABLE_RETRIEVAL` | `true` | Set `false` to boot without the datasets |
+| `MAX_INDEX_ROWS` | `20000` | Rows indexed from the medical corpus |
+| `TOP_K` | `2` | Examples injected per question |
+| `MIN_SIMILARITY` | `0.12` | Floor below which examples are discarded |
+| `MAX_HISTORY_TURNS` | `8` | Conversation memory window |
+
+## API
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/` | Chat UI |
+| `GET` | `/health` | Readiness, model, index size |
+| `POST` | `/chat` | Complete reply as sanitised HTML |
+| `POST` | `/chat/stream` | Same pipeline, streamed as SSE |
+| `POST` | `/chat/reset` | Clear a session's history |
+| `GET` | `/docs` | OpenAPI documentation |
+
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest -q
+```
+
+The suite runs fully offline against a stub model — no token, no downloads.
 
 ## Docker
 
-You can also run the application in a Docker container:
+```bash
+docker build -t harmonybot .
+docker run -p 7860:7860 -e HF_TOKEN=your_token harmonybot
+```
 
-1. Build the Docker image:
+## How it works
 
-   ```bash
-    docker build -t HarmonyBot-v1.0 .
+1. **Route** — keyword vote across medical and mental-health vocabularies,
+   falling back to retrieval similarity when no keyword matches.
+2. **Retrieve** — TF-IDF cosine search over the *question* side of the chosen
+   corpus, discarding anything below the similarity floor.
+3. **Prompt** — persona and reference examples go in a `system` message; the
+   user's question stays its own `user` message so the model can tell them
+   apart.
+4. **Generate** — streamed from the model, token by token.
+5. **Render** — Markdown converted, escaped, and whitelisted before display.
 
-   ```
-2. Run the Docker container:
+Datasets: [`avaliev/chat_doctor`](https://huggingface.co/datasets/avaliev/chat_doctor)
+and [`Amod/mental_health_counseling_conversations`](https://huggingface.co/datasets/Amod/mental_health_counseling_conversations).
 
-   ```bash
-    docker run -p 8080:8080 HarmonyBot-v1.0
-   
-   ```
+## Upgrading from v1
 
-## Usage
+v1 shipped several breaking defects, all fixed here:
 
-After installation, open the application in your browser, and start chatting with HarmonyBot by asking questions related to either medical concerns or mental health.
+- The pinned model (`Meta-Llama-3-8B-Instruct`) was retired from HF Inference
+  Providers and returned `model_not_supported` on every request.
+- `HF_HOME` was hardcoded to `/app/.cache`, which broke non-Docker runs and
+  hid cached credentials.
+- Retrieval always injected `train[0]`, so every medical question was answered
+  against the same appendectomy case, and the dataset roles were swapped.
+- Model output went into `innerHTML` unsanitised.
+- The Exit button POSTed to `/shutdown`, which never existed.
+- The Dockerfile ran `app:app` and set `USER user` without creating the user.
 
-**Example commands:**
+## Limitations
 
-- _"I’m feeling anxious. What should I do?"_
-- _"What are the symptoms of the flu?"_
+- Conversation history is per-process and in-memory; it does not survive a
+  restart or span replicas.
+- There is no authentication or rate limiting.
+- Retrieval is lexical (TF-IDF), so paraphrases with no shared vocabulary can
+  miss.
+- **Not a medical device.** Do not use it for diagnosis or treatment decisions.
 
-The bot will respond based on relevant datasets and models.
+## Group members
 
-## How It Works
-
-HarmonyBot uses two datasets:
-
-- **avaliev/chat_doctor**: Focused on medical questions and answers between patients and doctors.
-- **Amod/mental_health_counseling_conversations**: A mental health dataset to help guide users dealing with mental health challenges.
-
-Upon receiving a user input, the bot:
-
-1. Identifies the type of inquiry (mental health or medical) using keyword analysis.
-2. Selects a relevant context from the dataset.
-3. Uses this context to craft a prompt and generate a meaningful response via the **Meta-Llama-3-8B-Instruct** model.
-
-
-## Technologies Used
-- **FastAPI**: For creating the web application interface.
-- **Hugging Face**: For model hosting and inference, using the **Meta-Llama 3-8B** model to generate AI responses. Hugging Face’s serverless API handles interactions with this model in a scalable, cost-efficient way.
-- **Hugging Face Spaces**: A platform for hosting and sharing machine learning applications, using Docker for containerization, allowing the chatbot to run seamlessly on the web.
-- **Docker**: To Containerize the application, ensuring that it runs consistently across different environments. Hugging Face Spaces leverages Docker to build and deploy the application in a fully isolated environment.
-- **Uvicorn**: An ASGI server for asynchronous request handling, used with FastAPI to provide high-performance asynchronous processing.
-- **Markdown2**: For rendering the AI-generated text into a readable HTML format.
-- **Hugging Face Datasets**: The chatbot leverages two key datasets to answer medical and mental health-related queries.
-**Languages Used**: Python (backend), JavaScript (frontend interactivity), HTML (structure), and CSS (styling).
-
-## Group Members
-
-This project was a collaborative effort by a group of passionate developers and AI enthusiasts. Meet the team behind HarmonyBot:
-
-1. **Shabi ul Hassan**  
-   [LinkedIn](https://www.linkedin.com/in/shabi-ul-hassan1/)  
-
-2. **Abdullah Salman**  
-   [LinkedIn](https://www.linkedin.com/in/abdullah-salman-89253b272/)  
-
-3. **Nouman Hafeez**  
-   [LinkedIn](https://www.linkedin.com/in/noumanhafeez11nh/)  
-
-Together, we aimed to create a user-centric solution that leverages AI to improve access to medical and mental health advice. We are proud of this journey and excited about its potential impact!
+1. **Shabi ul Hassan** — [LinkedIn](https://www.linkedin.com/in/shabi-ul-hassan1/)
+2. **Abdullah Salman** — [LinkedIn](https://www.linkedin.com/in/abdullah-salman-89253b272/)
+3. **Nouman Hafeez** — [LinkedIn](https://www.linkedin.com/in/noumanhafeez11nh/)
 
 ## Supervisor
 
-We worked under the insightful supervision of **Dr. Mehreen Alam**, whose guidance and support were invaluable throughout the development process.  [LinkedIn](https://www.linkedin.com/in/dr-mehreen-alam-5a1b9720/)
+**Dr. Mehreen Alam** — [LinkedIn](https://www.linkedin.com/in/dr-mehreen-alam-5a1b9720/)
 
-## Video Demonstration
-
-Here is a quick demonstration of how HarmonyBot works:
+## Video demonstration
 
 [![HarmonyBot Video Demonstration](Thumbnail.png)](https://youtu.be/w5FbRiV-Vs4)
 
-Click the image above to watch the video.
-
-
 ## License
 
-This project is licensed under the **Apache License 2.0**. See the [LICENSE](LICENSE) file for more details.
-
-## Contributing
-
-We welcome contributions to improve HarmonyBot! Please feel free to submit a pull request or open an issue on GitHub if you have any suggestions or improvements.
-
-
+Apache License 2.0 — see [LICENSE](LICENSE).
