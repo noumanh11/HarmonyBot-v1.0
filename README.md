@@ -71,7 +71,7 @@ tests/                     # pytest suite
 
 ## Requirements
 
-- Python 3.11+
+- Python 3.12+ (numpy 2.5 dropped 3.11)
 - A Hugging Face token with inference access
 
 ## Installation
