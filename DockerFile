@@ -1,24 +1,65 @@
-# Use an official Python runtime as a parent image
-FROM python:3.11-slim
+# syntax=docker/dockerfile:1.9
 
-# Set the working directory in the container
+# ============================================================================
+# Stage 1 - build the virtualenv with uv (10-100x faster than pip, and it
+# resolves from the lockfile so an image rebuild is byte-for-byte repeatable).
+# ============================================================================
+FROM ghcr.io/astral-sh/uv:0.12-python3.13-bookworm-slim AS builder
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never
+
 WORKDIR /app
 
-# Copy the current directory contents into the container at /app
-COPY . /app
+# Dependencies resolve from the manifest alone, so this layer is cached until
+# pyproject.toml actually changes - editing application code never re-installs.
+COPY pyproject.toml uv.lock* ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --no-dev --no-install-project --frozen 2>/dev/null || \
+    uv pip install --no-cache -r pyproject.toml
 
-# Create a cache directory and set permissions
-RUN mkdir -p /app/.cache && chmod -R 777 /app/.cache
+COPY app ./app
+COPY application.py ./
 
-# Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir -r Requirements.txt
+# ============================================================================
+# Stage 2 - runtime. Only the venv and source cross over; uv, build caches and
+# compilers stay behind, which is most of the image size and attack surface.
+# ============================================================================
+FROM python:3.13-slim-bookworm AS runtime
 
-# Set the environment variable for Hugging Face cache location
-ENV HF_HOME=/app/.cache
+# Hugging Face Spaces runs containers as uid 1000. v1 declared `USER user`
+# without ever creating the account, so the image could not start at all.
+RUN groupadd --gid 1000 user \
+    && useradd --uid 1000 --gid 1000 --create-home user
 
-#ENV PORT=7680
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONFAULTHANDLER=1 \
+    HF_HOME=/home/user/.cache/huggingface \
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    PORT=7860
+
+WORKDIR /app
+
+COPY --from=builder --chown=user:user /app/.venv /app/.venv
+COPY --chown=user:user app ./app
+COPY --chown=user:user application.py ./
+COPY --chown=user:user static ./static
+COPY --chown=user:user templates ./templates
+
+RUN mkdir -p "$HF_HOME" && chown -R user:user "$HF_HOME"
 
 USER user
 
-# Run the application using Unicorn
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860"]
+EXPOSE 7860
+
+# start-period covers the dataset download and index build on a cold cache.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=180s --retries=3 \
+    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:7860/health',timeout=4).status==200 else 1)"
+
+# v1 pointed at `app:app`; the entrypoint module is application.py, so the
+# container exited immediately with "Could not import module app".
+CMD ["uvicorn", "application:app", "--host", "0.0.0.0", "--port", "7860", \
+     "--workers", "1", "--timeout-graceful-shutdown", "20", "--proxy-headers"]

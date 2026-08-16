@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Keeps CI offline and deterministic: no dataset downloads, no HF calls.
+  ENABLE_RETRIEVAL: "false"
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Lint
+        run: uvx ruff check --output-format=github .
+
+      - name: Format check
+        run: uvx ruff format --check .
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python }}
+
+      - name: Install
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Test
+        run: pytest --cov=app --cov-report=term-missing
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      # Proves the image still builds and boots - v1 shipped a Dockerfile that
+      # could not start, and nothing caught it.
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./DockerFile
+          push: false
+          load: true
+          tags: harmonybot:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Boot check
+        run: |
+          docker run -d --name hb -p 7860:7860 \
+            -e ENABLE_RETRIEVAL=false harmonybot:ci
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:7860/health; then echo "\nOK"; exit 0; fi
+            sleep 2
+          done
+          echo "container failed to become healthy"; docker logs hb; exit 1
