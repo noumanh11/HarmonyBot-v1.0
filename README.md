@@ -77,7 +77,7 @@ tests/                     # pytest suite
 ## Installation
 
 ```bash
-git clone https://github.com/shabihassan1/HarmonyBot-v1.0.git
+git clone https://github.com/noumanh11/HarmonyBot-v1.0.git
 cd HarmonyBot-v1.0
 
 python -m venv venv
@@ -179,6 +179,10 @@ v1 shipped several breaking defects, all fixed here:
 - **Not a medical device.** Do not use it for diagnosis or treatment decisions.
 
 ## Group members
+
+Originally built together at
+[shabihassan1/HarmonyBot-v1.0](https://github.com/shabihassan1/HarmonyBot-v1.0);
+this repository is the v2 continuation.
 
 1. **Shabi ul Hassan** — [LinkedIn](https://www.linkedin.com/in/shabi-ul-hassan1/)
 2. **Abdullah Salman** — [LinkedIn](https://www.linkedin.com/in/abdullah-salman-89253b272/)

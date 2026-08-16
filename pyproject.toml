@@ -38,7 +38,8 @@ dev = [
 ]
 
 [project.urls]
-Repository = "https://github.com/shabihassan1/HarmonyBot-v1.0"
+Repository = "https://github.com/noumanh11/HarmonyBot-v1.0"
+Upstream = "https://github.com/shabihassan1/HarmonyBot-v1.0"
 
 [build-system]
 requires = ["hatchling"]
